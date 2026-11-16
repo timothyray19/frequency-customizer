@@ -1,0 +1,15 @@
+bin/
+obj/
+publish/
+.tmp/
+*.user
+.vs/
+
+# Mac build output
+mac/.build/
+mac/build/
+.DS_Store
+
+# Third-party driver downloads (not ours to redistribute)
+VBCABLE_Driver_Pack*/
+VBCABLE_Driver_Pack*.zip

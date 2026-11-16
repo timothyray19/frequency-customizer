@@ -1,0 +1,84 @@
+name: Build
+
+# Every push builds both apps. Pushing a tag like v1.0.1 also publishes a GitHub Release
+# with FrequencyCustomizer-mac.zip and FrequencyCustomizer-windows.zip attached.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test tuning math
+        working-directory: mac
+        run: swift test
+
+      - name: Build Frequency Customizer.app (Apple Silicon + Intel)
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then export VERSION="${GITHUB_REF_NAME#v}"; fi
+          bash mac/scripts/make-app.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FrequencyCustomizer-mac
+          path: mac/build/FrequencyCustomizer-mac.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test
+        run: dotnet test
+
+      - name: Publish exe
+        run: dotnet publish src/FrequencyCustomizer -c Release -o publish
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath FrequencyCustomizer-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FrequencyCustomizer-windows
+          path: FrequencyCustomizer-windows.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          body: |
+            ## Download
+
+            - **Mac** (macOS 14.2 Sonoma or newer, Apple Silicon or Intel): `FrequencyCustomizer-mac.zip`
+            - **Windows 10/11**: `FrequencyCustomizer-windows.zip` (needs the free VB-CABLE driver and the .NET 8 Desktop Runtime)
+
+            ### Mac: first launch
+            1. Unzip, then drag **Frequency Customizer** into **Applications**.
+            2. Double-click it. macOS says it "cannot verify" the app because it isn't from the App Store. Click **Done**.
+            3. Open **System Settings › Privacy & Security**, scroll down, click **Open Anyway** next to Frequency Customizer, and confirm.
+            4. Pick 432 / 528 / 639 Hz and click **Start**. When macOS asks to let the app capture system audio, click **Allow**.
+
+            See the README for details.
